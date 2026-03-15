@@ -378,6 +378,12 @@ export default function App() {
           </a>
         </div>
         <p className="footer-copy">© 2025 RoastAI. No feelings were considered in the making of this app.</p>
+          <p className="footer-credit">
+            Built by <span className="footer-credit-name">k.Harshith</span> ·{" "}
+            <a href="mailto:k.harshith2507@gmail.com" className="footer-credit-email">
+              k.harshith2507@gmail.com
+            </a>
+          </p>
       </footer>
 
     </div>
