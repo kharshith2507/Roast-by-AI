@@ -208,11 +208,7 @@ export default function App() {
       <section className="hero-section">
         <div className="hero-bg-glow" />
         <div className="hero-content">
-          <div className="hero-badge">
-            <span className="badge-dot" />
-            Powered by Claude AI
-          </div>
-          <h1 className="hero-title">
+        <h1 className="hero-title">
             Get <em>Roasted</em><br />by AI
             <span className="title-flame">🔥</span>
           </h1>
