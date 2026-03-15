@@ -1,37 +1,58 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import CameraView from "./camera";
 import RoastResult from "./roastresult";
 import RoastCard from "./RoastCard";
+import "./App.css";
 
-const RANDOM_ROASTS = [
+const FALLBACK_ROASTS = [
   "You look like you Google 'how to be interesting' every morning.",
   "Your face called. It wants its expression back.",
   "You have the energy of someone who replies 'k' to paragraphs.",
   "You look like the NPC that gives side quests no one does.",
   "Your vibe is aggressively mid and somehow proud of it.",
+  "Even your Wi-Fi signal has more personality than you.",
+  "You have the aura of someone who's always slightly lost.",
+  "Your look says 'I peaked at a school project presentation'.",
+  "You give off 'terms and conditions not fully read' energy.",
+  "The background is doing more work than you are.",
 ];
+
+const pickRandom = (arr, avoid = null) => {
+  const pool = avoid && arr.length > 1 ? arr.filter((x) => x !== avoid) : arr;
+  return pool[Math.floor(Math.random() * pool.length)];
+};
 
 export default function App() {
   const [savage, setSavage] = useState(true);
   const [phase, setPhase] = useState("camera");
   const [capturedImage, setCapturedImage] = useState(null);
-  const [roast, setRoast] = useState("");
+  const [allRoasts, setAllRoasts] = useState([]);
+  const [activeRoast, setActiveRoast] = useState("");
   const [loading, setLoading] = useState(false);
   const [isRandom, setIsRandom] = useState(false);
   const [aiPortrait, setAiPortrait] = useState(null);
   const [portraitLoading, setPortraitLoading] = useState(false);
   const [portraitPrompt, setPortraitPrompt] = useState("");
+  const [navOpen, setNavOpen] = useState(false);
 
-  const handleCapture = async (base64, dataUrl) => {
+  const cameraRef = useRef(null);
+
+  const handleReroll = () => {
+    if (allRoasts.length < 2) return;
+    setActiveRoast(pickRandom(allRoasts, activeRoast));
+  };
+
+  const processImage = async (base64, dataUrl) => {
     setCapturedImage(dataUrl);
     setPhase("result");
     setLoading(true);
-    setRoast("");
+    setAllRoasts([]);
+    setActiveRoast("");
     setIsRandom(false);
     setAiPortrait(null);
     setPortraitPrompt("");
 
-    let roastText = "";
+    let lines = [];
 
     try {
       const response = await fetch("http://localhost:5000/api/roast", {
@@ -41,25 +62,24 @@ export default function App() {
       });
       if (!response.ok) throw new Error(`Server error: ${response.status}`);
       const data = await response.json();
-      const roasts = data?.data?.roasts;
-      roastText = roasts?.length > 0
-        ? roasts[Math.floor(Math.random() * roasts.length)]
-        : "AI took one look and became speechless. That's the roast.";
-      setRoast(roastText);
-    } catch (error) {
-      console.error("Roast error:", error);
-      roastText = "AI refused to roast you. You're too powerful.";
-      setRoast(roastText);
+      lines = data?.data?.roasts ?? [];
+      if (lines.length === 0) lines = ["AI took one look and became speechless. That's the roast."];
+    } catch (err) {
+      console.error("Roast error:", err);
+      lines = [...FALLBACK_ROASTS].sort(() => Math.random() - 0.5);
     } finally {
       setLoading(false);
     }
+
+    setAllRoasts(lines);
+    setActiveRoast(pickRandom(lines));
 
     setPortraitLoading(true);
     try {
       const portraitRes = await fetch("http://localhost:5000/api/portrait", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: base64, roast: roastText, mode: savage ? "savage" : "friendly" }),
+        body: JSON.stringify({ image: base64, roast: lines[0], mode: savage ? "savage" : "friendly" }),
       });
       if (!portraitRes.ok) throw new Error(`Portrait error: ${portraitRes.status}`);
       const portraitData = await portraitRes.json();
@@ -72,119 +92,254 @@ export default function App() {
     }
   };
 
+  const handleCapture = (base64, dataUrl) => processImage(base64, dataUrl);
+
   const handleRandom = () => {
-    setCapturedImage(null);
-    setIsRandom(true);
-    setPhase("result");
-    setLoading(false);
-    setAiPortrait(null);
-    setPortraitLoading(false);
-    setPortraitPrompt("");
-    setRoast(RANDOM_ROASTS[Math.floor(Math.random() * RANDOM_ROASTS.length)]);
+    const frame = cameraRef.current?.captureFrame?.();
+    if (frame) {
+      processImage(frame.base64, frame.dataUrl);
+    } else {
+      const lines = [...FALLBACK_ROASTS].sort(() => Math.random() - 0.5);
+      setCapturedImage(null);
+      setIsRandom(true);
+      setPhase("result");
+      setLoading(false);
+      setAiPortrait(null);
+      setPortraitLoading(false);
+      setPortraitPrompt("");
+      setAllRoasts(lines);
+      setActiveRoast(pickRandom(lines));
+    }
   };
 
   const handleRetry = () => {
     setCapturedImage(null);
-    setRoast("");
+    setAllRoasts([]);
+    setActiveRoast("");
     setIsRandom(false);
     setAiPortrait(null);
     setPortraitLoading(false);
     setPortraitPrompt("");
     setPhase("camera");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
-    <div style={styles.page}>
-      <style>{`
-        @keyframes fadeIn  { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
-        @keyframes pulse   { from { transform:scale(1); } to { transform:scale(1.2); } }
-        @keyframes spin    { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
-        @keyframes shimmer { 0% { background-position:-400px 0; } 100% { background-position:400px 0; } }
-      `}</style>
+    <div className="app-root">
 
-      <div style={styles.header}>
-        <h1 style={styles.title}>Roast by AI 🔥</h1>
-        <div style={styles.underline} />
-        <p style={styles.sub}>"Take a selfie and let AI roast you."</p>
-        <div style={styles.toggleRow}>
-          <span style={styles.label}>🐱 Friendly</span>
-          <div onClick={() => setSavage((s) => !s)} style={{ ...styles.toggle, background: savage ? "#ff4444" : "#ccc" }}>
-            <div style={{ ...styles.thumb, transform: savage ? "translateX(20px)" : "translateX(0)" }} />
-          </div>
-          <span style={styles.label}>😈 Savage</span>
+      {/* ── NAVBAR ───────────────────────────────────── */}
+      <nav className="navbar">
+        <div className="nav-inner">
+          <a href="#" className="nav-logo">
+            <span className="logo-text">RoastAI</span>
+            <span className="logo-flame">🔥</span>
+          </a>
+
+          <button
+            className={`nav-hamburger ${navOpen ? "open" : ""}`}
+            onClick={() => setNavOpen(!navOpen)}
+            aria-label="Toggle menu"
+          >
+            <span /><span /><span />
+          </button>
+
+          <ul className={`nav-links ${navOpen ? "open" : ""}`}>
+            <li><a href="#how-it-works" onClick={() => setNavOpen(false)}>How it works</a></li>
+            <li><a href="#camera-section" onClick={() => setNavOpen(false)}>Try it</a></li>
+            <li>
+              <a
+                href="https://github.com"
+                target="_blank"
+                rel="noreferrer"
+                className="nav-github-btn"
+                onClick={() => setNavOpen(false)}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+                </svg>
+                GitHub
+              </a>
+            </li>
+          </ul>
         </div>
-        {savage && <p style={styles.savageTag}>😤 ALL CAPS energy, no mercy 🔥</p>}
-      </div>
+      </nav>
 
-      <div style={styles.card}>
-        {phase === "camera" ? (
-          <>
-            <CameraView onCapture={handleCapture} />
-            <button onClick={handleRandom} style={styles.randomBtn}>🎲 Random Roast</button>
-          </>
-        ) : (
-          <>
-            <RoastResult imageDataUrl={capturedImage} roast={roast} loading={loading} onRetry={handleRetry} />
+      {/* ── HERO ─────────────────────────────────────── */}
+      <section className="hero-section">
+        <div className="hero-bg-glow" />
+        <div className="hero-content">
+          <div className="hero-badge">
+            <span className="badge-dot" />
+            Powered by Claude AI
+          </div>
+          <h1 className="hero-title">
+            Get <em>Roasted</em><br />by AI
+            <span className="title-flame">🔥</span>
+          </h1>
+          <p className="hero-sub">
+            Point your camera, strike a pose, and let AI drag you<br className="br-desktop" />
+            like it's open mic night.
+          </p>
 
-            {!isRandom && (loading || portraitLoading || aiPortrait || portraitPrompt) && (
-              <div style={{ width: "100%", animation: "fadeIn 0.5s ease" }}>
-                <p style={styles.sectionLabel}>🤖 Your AI Portrait</p>
-                {portraitLoading || loading ? (
-                  <div style={styles.portraitSkeleton}>
-                    <span style={{ fontSize: "28px", display: "block", marginBottom: "8px", animation: "spin 1.2s linear infinite" }}>🎨</span>
-                    <p style={{ color: "#ff8c00", fontSize: "13px", margin: 0, fontStyle: "italic" }}>AI is painting your portrait...</p>
-                  </div>
-                ) : aiPortrait ? (
-                  <div style={styles.portraitWrap}>
-                    <img src={aiPortrait} alt="AI-generated portrait" style={{ ...styles.portraitImg, boxShadow: savage ? "0 0 28px #ff444466, 0 6px 20px #00000055" : "0 0 28px #ffd70066, 0 6px 20px #00000055" }} />
-                    <p style={styles.portraitCaption}>✨ AI's interpretation of you</p>
-                  </div>
-                ) : portraitPrompt ? (
-                  <div style={styles.promptBox}>
-                    <p style={styles.promptLabel}>🎨 AI Portrait Prompt Ready</p>
-                    <p style={styles.promptText}>{portraitPrompt}</p>
-                    <p style={styles.promptHint}>Wire up fal.ai or Replicate in the backend to auto-generate the image!</p>
-                  </div>
-                ) : null}
+          {/* ── MODE TOGGLE ── */}
+          <div className="mode-toggle-wrap">
+            <button
+              className={`mode-btn ${!savage ? "active-friendly" : ""}`}
+              onClick={() => setSavage(false)}
+            >
+              <span className="mode-icon">😇</span>
+              <span>Friendly</span>
+            </button>
+            <div
+              className={`toggle-pill ${savage ? "savage" : "friendly"}`}
+              onClick={() => setSavage((s) => !s)}
+              role="switch"
+              aria-checked={savage}
+              tabIndex={0}
+              onKeyDown={(e) => e.key === " " && setSavage((s) => !s)}
+            >
+              <div className="toggle-thumb" />
+            </div>
+            <button
+              className={`mode-btn ${savage ? "active-savage" : ""}`}
+              onClick={() => setSavage(true)}
+            >
+              <span className="mode-icon">😈</span>
+              <span>Savage</span>
+            </button>
+          </div>
+          {savage && (
+            <p className="savage-warning">
+              ⚠️ All caps energy. No survivors. No mercy.
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* ── CAMERA / RESULT SECTION ───────────────────── */}
+      <section id="camera-section" className="main-section">
+        <div className={`main-card ${savage ? "savage-card" : "friendly-card"}`}>
+
+          {/* card header stripe */}
+          <div className={`card-stripe ${savage ? "stripe-red" : "stripe-gold"}`} />
+
+          {phase === "camera" ? (
+            <div className="camera-phase">
+              <CameraView ref={cameraRef} onCapture={handleCapture} savage={savage} />
+              <button
+                onClick={handleRandom}
+                className="btn-random"
+              >
+                🎲 Random Roast
+              </button>
+            </div>
+          ) : (
+            <div className="result-phase">
+              <RoastResult
+                imageDataUrl={capturedImage}
+                roast={activeRoast}
+                loading={loading}
+                onRetry={handleRetry}
+                savage={savage}
+              />
+
+              {!loading && allRoasts.length > 1 && (
+                <div className="reroll-wrap">
+                  <button className="btn-reroll" onClick={handleReroll}>
+                    🎲 Different Roast
+                  </button>
+                  <p className="reroll-hint">{allRoasts.length} roasts generated — keep rolling!</p>
+                </div>
+              )}
+
+              {!isRandom && (loading || portraitLoading || aiPortrait || portraitPrompt) && (
+                <div className="portrait-section">
+                  <p className="section-label">🤖 Your AI Portrait</p>
+                  {portraitLoading || loading ? (
+                    <div className="portrait-skeleton">
+                      <span className="skeleton-icon">🎨</span>
+                      <p>AI is painting your portrait...</p>
+                    </div>
+                  ) : aiPortrait ? (
+                    <div className="portrait-wrap">
+                      <img
+                        src={aiPortrait}
+                        alt="AI-generated portrait"
+                        className={`portrait-img ${savage ? "portrait-red" : "portrait-gold"}`}
+                      />
+                      <p className="portrait-caption">✨ AI's interpretation of you</p>
+                    </div>
+                  ) : portraitPrompt ? (
+                    <div className="prompt-box">
+                      <p className="prompt-label">🎨 AI Portrait Prompt Ready</p>
+                      <p className="prompt-text">{portraitPrompt}</p>
+                      <p className="prompt-hint">Wire up fal.ai or Replicate in the backend to auto-generate the image!</p>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              {!loading && activeRoast && (
+                <div className="roast-card-section">
+                  <p className="section-label">🎨 Your Roast Card</p>
+                  <RoastCard
+                    imageDataUrl={aiPortrait || capturedImage}
+                    roast={activeRoast}
+                    savage={savage}
+                    isRandom={isRandom}
+                    isAiPortrait={!!aiPortrait}
+                  />
+                </div>
+              )}
+
+              {!loading && (
+                <button onClick={handleRetry} className="btn-retake">
+                  🔄 Retake Photo
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── HOW IT WORKS ─────────────────────────────── */}
+      <section id="how-it-works" className="how-section">
+        <div className="how-inner">
+          <div className="section-tag">The Process</div>
+          <h2 className="how-title">How it works</h2>
+          <p className="how-sub">Three steps to existential crisis</p>
+
+          <div className="steps-grid">
+            {[
+              { num: "01", icon: "📸", title: "Take a Selfie", desc: "Point your camera at your beautiful face and snap the moment." },
+              { num: "02", icon: "🧠", title: "AI Analyzes", desc: "Claude AI studies every pixel, every angle, every questionable life choice visible on your face." },
+              { num: "03", icon: "🔥", title: "Get Roasted", desc: "Receive a devastating (or friendly) roast crafted just for you. No survivors." },
+            ].map((step, i) => (
+              <div key={i} className="step-card" style={{ animationDelay: `${i * 0.12}s` }}>
+                <div className="step-num">{step.num}</div>
+                <div className="step-icon">{step.icon}</div>
+                <h3 className="step-title">{step.title}</h3>
+                <p className="step-desc">{step.desc}</p>
               </div>
-            )}
+            ))}
+          </div>
+        </div>
+      </section>
 
-            {!loading && roast && (
-              <div style={{ width: "100%", animation: "fadeIn 0.5s ease" }}>
-                <p style={styles.sectionLabel}>🎨 Your Roast Card</p>
-                <RoastCard imageDataUrl={aiPortrait || capturedImage} roast={roast} savage={savage} isRandom={isRandom} isAiPortrait={!!aiPortrait} />
-              </div>
-            )}
+      {/* ── FOOTER ───────────────────────────────────── */}
+      <footer className="footer">
+        <div className="footer-inner">
+          <span className="footer-logo">RoastAI 🔥</span>
+          <span className="footer-divider">·</span>
+          <span className="footer-text">Made with AI & questionable humor</span>
+          <span className="footer-divider">·</span>
+          <a href="https://github.com" target="_blank" rel="noreferrer" className="footer-link">
+            GitHub ↗
+          </a>
+        </div>
+        <p className="footer-copy">© 2025 RoastAI. No feelings were considered in the making of this app.</p>
+      </footer>
 
-            {!loading && <button onClick={handleRetry} style={styles.retakeBtn}>🔄 Retake Photo</button>}
-          </>
-        )}
-      </div>
     </div>
   );
 }
-
-const styles = {
-  page: { minHeight: "100vh", background: "#fafaf7", display: "flex", flexDirection: "column", alignItems: "center", padding: "32px 16px", fontFamily: "'Segoe UI', sans-serif" },
-  header: { textAlign: "center", marginBottom: "28px" },
-  title: { fontSize: "42px", fontFamily: "'Brush Script MT', cursive", margin: "0 0 4px", color: "#111" },
-  underline: { height: "3px", width: "200px", background: "linear-gradient(90deg, #ff4444, #ff8c00)", margin: "0 auto 10px", borderRadius: "2px" },
-  sub: { fontStyle: "italic", color: "#666", fontSize: "14px", margin: "0 0 14px" },
-  toggleRow: { display: "flex", alignItems: "center", gap: "10px", justifyContent: "center" },
-  label: { fontSize: "14px", color: "#444" },
-  toggle: { width: "44px", height: "24px", borderRadius: "12px", position: "relative", cursor: "pointer", transition: "background 0.3s" },
-  thumb: { width: "20px", height: "20px", background: "#fff", borderRadius: "50%", position: "absolute", top: "2px", left: "2px", transition: "transform 0.3s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" },
-  savageTag: { color: "#ff4444", fontSize: "13px", fontWeight: "600", marginTop: "8px" },
-  card: { background: "#fff8ee", border: "2px solid #222", borderRadius: "20px", padding: "32px 28px", width: "100%", maxWidth: "480px", boxShadow: "4px 4px 0px #222", display: "flex", flexDirection: "column", alignItems: "center", gap: "16px" },
-  randomBtn: { background: "linear-gradient(135deg, #ffd700, #ffaa00)", color: "#222", border: "none", borderRadius: "12px", padding: "13px 36px", fontSize: "14px", fontWeight: "700", cursor: "pointer", boxShadow: "0 3px 10px rgba(255,170,0,0.35)", transition: "transform 0.15s" },
-  sectionLabel: { textAlign: "center", fontWeight: "700", fontSize: "15px", color: "#333", marginBottom: "8px" },
-  portraitSkeleton: { width: "100%", maxWidth: "280px", height: "200px", margin: "0 auto", background: "linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)", backgroundSize: "800px 100%", animation: "shimmer 1.5s infinite", borderRadius: "16px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", border: "2px dashed #ffaa0055" },
-  portraitWrap: { display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" },
-  portraitImg: { width: "100%", maxWidth: "280px", borderRadius: "16px", border: "3px solid #222", display: "block" },
-  portraitCaption: { fontSize: "12px", color: "#888", margin: 0, fontStyle: "italic" },
-  promptBox: { background: "rgba(255,170,0,0.08)", border: "1.5px dashed #ffaa00", borderRadius: "12px", padding: "16px", textAlign: "center" },
-  promptLabel: { fontWeight: "700", color: "#ff8c00", fontSize: "13px", margin: "0 0 8px" },
-  promptText: { fontSize: "12px", color: "#555", lineHeight: "1.6", margin: "0 0 8px", fontStyle: "italic" },
-  promptHint: { fontSize: "11px", color: "#aaa", margin: 0 },
-  retakeBtn: { background: "transparent", color: "#555", border: "1.5px solid #bbb", borderRadius: "10px", padding: "10px 28px", fontSize: "13px", fontWeight: "600", cursor: "pointer", transition: "all 0.2s" },
-};

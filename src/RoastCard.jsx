@@ -49,7 +49,6 @@ export default function RoastCard({ imageDataUrl, roast, savage, isRandom = fals
     ctx.font = "bold 13px 'Segoe UI', sans-serif";
     ctx.textAlign = "center";
 
-    // Label: show "AI PORTRAIT" badge if applicable
     let modeLabel = savage ? "💀 SAVAGE ROAST" : "😇 FRIENDLY ROAST";
     if (isAiPortrait) modeLabel += "  •  🤖 AI PORTRAIT";
     ctx.fillText(modeLabel, CARD_W / 2, labelY);
@@ -154,7 +153,6 @@ export default function RoastCard({ imageDataUrl, roast, savage, isRandom = fals
         drawBase(ctx, CARD_W, CARD_H, accent);
         drawGlowRing(ctx, cx, cy, radius, accent);
 
-        // For AI portrait: draw normally (not mirrored); for selfie: mirror
         ctx.save();
         ctx.beginPath();
         ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -167,17 +165,14 @@ export default function RoastCard({ imageDataUrl, roast, savage, isRandom = fals
         const srcY = (img.height - srcH) / 2;
 
         if (isAiPortrait) {
-          // Draw AI portrait without mirroring
           ctx.drawImage(img, srcX, srcY, srcW, srcH, photoX, photoY, photoSize, photoSize);
         } else {
-          // Mirror selfie
           ctx.translate(photoX + photoSize, photoY);
           ctx.scale(-1, 1);
           ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, photoSize, photoSize);
         }
         ctx.restore();
 
-        // AI Portrait badge overlay
         if (isAiPortrait) {
           ctx.save();
           ctx.fillStyle = "rgba(0,0,0,0.6)";
@@ -204,7 +199,11 @@ export default function RoastCard({ imageDataUrl, roast, savage, isRandom = fals
   const handleDownload = () => {
     const canvas = canvasRef.current;
     const link = document.createElement("a");
-    link.download = isRandom ? "random-roast-card.png" : isAiPortrait ? "ai-portrait-roast-card.png" : "my-roast-card.png";
+    link.download = isRandom
+      ? "random-roast-card.png"
+      : isAiPortrait
+      ? "ai-portrait-roast-card.png"
+      : "my-roast-card.png";
     link.href = canvas.toDataURL("image/png");
     link.click();
   };
@@ -212,24 +211,82 @@ export default function RoastCard({ imageDataUrl, roast, savage, isRandom = fals
   if (!roast) return null;
 
   return (
-    <div style={styles.wrapper}>
-      <div style={styles.canvasWrap}>
+    <div className="rc-wrapper">
+      <style>{`
+        .rc-wrapper {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 14px;
+          width: 100%;
+          margin-top: 8px;
+        }
+        .rc-canvas-wrap {
+          width: 100%;
+          max-width: 360px;
+          position: relative;
+          min-height: 80px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+        }
+        .rc-canvas {
+          width: 100%;
+          border-radius: 16px;
+          transition: opacity 0.4s ease;
+        }
+        .rc-spinner {
+          position: absolute;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+        }
+        .rc-spinner span {
+          font-size: 32px;
+          animation: spin 1s linear infinite;
+        }
+        .rc-spinner p {
+          color: var(--text-muted);
+          font-size: 13px;
+          margin: 0;
+        }
+        .rc-download-btn {
+          border: none;
+          border-radius: 14px;
+          padding: 14px 36px;
+          font-size: 14px;
+          font-weight: 800;
+          cursor: pointer;
+          letter-spacing: 0.5px;
+          font-family: var(--font-body);
+          box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+          transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .rc-download-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+        }
+        .rc-download-btn:active { transform: translateY(0); }
+      `}</style>
+
+      <div className="rc-canvas-wrap">
         <canvas
           ref={canvasRef}
+          className="rc-canvas"
           style={{
-            width: "100%",
-            borderRadius: "16px",
             boxShadow: savage
-              ? "0 0 32px #ff444466, 0 8px 24px #00000088"
-              : "0 0 32px #ffd70066, 0 8px 24px #00000088",
+              ? "0 0 32px rgba(255,68,68,0.4), 0 8px 24px rgba(0,0,0,0.5)"
+              : "0 0 32px rgba(255,215,0,0.35), 0 8px 24px rgba(0,0,0,0.5)",
             opacity: ready ? 1 : 0,
-            transition: "opacity 0.4s ease",
           }}
         />
         {!ready && (
-          <div style={styles.spinner}>
-            <span style={{ fontSize: "32px", animation: "spin 1s linear infinite" }}>🔥</span>
-            <p style={{ color: "#ffffff88", marginTop: "8px", fontSize: "13px" }}>Composing roast card…</p>
+          <div className="rc-spinner">
+            <span>🔥</span>
+            <p>Composing roast card…</p>
           </div>
         )}
       </div>
@@ -237,43 +294,17 @@ export default function RoastCard({ imageDataUrl, roast, savage, isRandom = fals
       {ready && (
         <button
           onClick={handleDownload}
+          className="rc-download-btn"
           style={{
-            ...styles.downloadBtn,
             background: savage
               ? "linear-gradient(135deg, #ff4444, #cc0000)"
               : "linear-gradient(135deg, #ffd700, #ffaa00)",
-            color: savage ? "#fff" : "#222",
+            color: savage ? "#fff" : "#111",
           }}
         >
           ⬇️ Download Roast Card
         </button>
       )}
-
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
     </div>
   );
 }
-
-const styles = {
-  wrapper: {
-    display: "flex", flexDirection: "column", alignItems: "center",
-    gap: "14px", width: "100%", marginTop: "8px",
-  },
-  canvasWrap: {
-    width: "100%", maxWidth: "360px", position: "relative",
-    minHeight: "80px", display: "flex", flexDirection: "column",
-    alignItems: "center", justifyContent: "center",
-  },
-  spinner: {
-    position: "absolute", display: "flex", flexDirection: "column",
-    alignItems: "center", justifyContent: "center",
-  },
-  downloadBtn: {
-    border: "none", borderRadius: "14px", padding: "14px 36px",
-    fontSize: "15px", fontWeight: "800", cursor: "pointer",
-    letterSpacing: "0.5px", boxShadow: "0 4px 16px #00000044",
-    transition: "transform 0.15s, box-shadow 0.15s",
-  },
-};
