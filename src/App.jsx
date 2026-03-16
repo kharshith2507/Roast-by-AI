@@ -208,7 +208,7 @@ export default function App() {
       <section className="hero-section">
         <div className="hero-bg-glow" />
         <div className="hero-content">
-        <h1 className="hero-title">
+          <h1 className="hero-title">
             Get <em>Roasted</em><br />by AI
             <span className="title-flame">🔥</span>
           </h1>
@@ -369,17 +369,17 @@ export default function App() {
           <span className="footer-divider">·</span>
           <span className="footer-text">Made with AI & questionable humor</span>
           <span className="footer-divider">·</span>
-          <a href="https://github.com" target="_blank" rel="noreferrer" className="footer-link">
+          <a href="https://github.com/kharshith2507" target="_blank" rel="noreferrer" className="footer-link">
             GitHub ↗
           </a>
         </div>
         <p className="footer-copy">© 2025 RoastAI. No feelings were considered in the making of this app.</p>
-          <p className="footer-credit">
-            Built by <span className="footer-credit-name">k.Harshith</span> ·{" "}
-            <a href="mailto:k.harshith2507@gmail.com" className="footer-credit-email">
-              k.harshith2507@gmail.com
-            </a>
-          </p>
+        <p className="footer-credit">
+          Built by <span className="footer-credit-name">k.Harshith</span> ·{" "}
+          <a href="mailto:k.harshith2507@gmail.com" className="footer-credit-email">
+            k.harshith2507@gmail.com
+          </a>
+        </p>
       </footer>
 
     </div>
